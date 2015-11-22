@@ -1,0 +1,7 @@
+name: Publish Document
+account: rpubs
+server: rpubs.com
+bundleId:
+        https://api.rpubs.com/api/v1/document/129177/3699f977ed55425b87833d96074b9187
+url: http://rpubs.com/DataRacer11/129177
+when: 1448206154.76856

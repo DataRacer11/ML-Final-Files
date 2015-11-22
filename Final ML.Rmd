@@ -1,0 +1,205 @@
+---
+title: "Machine Learning Project"
+author: "DataRacer11"
+date: "November 22, 2015"
+output: 
+  html_document: 
+    keep_md: yes
+---
+### Introduction:
+
+Using devices such as [Jawbone Up](https://jawbone.com/up), [Nike Fuel Band](https://secure-nikeplus.nike.com/plus/products/fuelband/) , and [Fitbit](https://www.fitbit.com/) it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self-movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: [see the section on the Weight Lifting Exercise Dataset](http://groupware.les.inf.puc-rio.br/har). 
+
+###About the Weight Lifting Exercises dataset:
+
+The Weight Lifting Exercises dataset [WLE dataset](http://groupware.les.inf.puc-rio.br/static/WLE/WearableComputing_weight_lifting_exercises_biceps_curl_variations.csv), was developed by defining the quality of correct execution which investigates three aspects that pertain to qualitative activity recognition; 1) specifying correct execution, 2) automatic and robust detection of execution mistakes and 3) providing feedback on the quality of the execution to the user. This dataset is licensed under the Creative Commons license [CC BY-SA](https://en.wikipedia.org/wiki/Creative_Commons_license).
+
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+(Class A) corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes. Participants were supervised by an experienced weight lifter to make sure the execution complied with the manner they were supposed to simulate. The exercises were performed by six male participants aged between 20-28 years, with little weight lifting experience. 
+
+###Project rules for submission:
+
+1.	The goal of this project is to predict the manner in which the exercise was executed. 
+2.	The "classe" variable is used from the training set
+3.	Other variables may be used to predict
+4.	A report has been created describing: a) How the model was built b) How cross validation was used and c)The expected out of sample error
+6.	The prediction model is used to predict 20 different test cases.
+7.	The submission consists of a link to a Github repro with the following files: a) R markdown file, b) HTML file describing the analysis, c) Write-up with < 2000 words, d) Number of figures < 5, e) A repro with a gh-pages branch so the HTML page can be viewed online 
+6.	The machine learning algorithm has been applied to the 20 test cases available in the test data.
+7.	Predictions have been submitted in appropriate format to the programming assignment for automated grading 
+Reproducible Research:
+1.	Due to security concerns with the exchange of R code, the code will not be run during the evaluation by classmates. 
+2.	Classmates will be able to view the compiled HTML version of the analysis if they download the repro.
+
+Using a "Model-based Activity Recognition" Approach:
+The approach taken by the investigators in the following paper [Qualitative Activity Recognition of Weight Lifting Exercises](http://groupware.les.inf.puc-rio.br/work.jsf?p1=11201) was selected because sports exercises are often composed of well-defined movements. Therefore, it is useful to use an approach that leverages the capabilities of a model to analyze activities as well as investigate other researcher's results which have executed a model-based approach:
+
+1)	Zinnen et al. compare sensor-oriented approaches to model-based approaches in activity recognition [1] and demonstrated that a model-based approach can increase the robustness of recognition results. 
+2)	Zinnen et al. in a related work proposed a model-based approach using high-level primitives derived from a 3D human model [2]. A continuous data stream was split into short segments of interest in order to discover more distinctive features for Activity Recognition. 
+3)	Reiss et al. used a biomechanical model-based approach to estimate upper-body pose and recognize every day and fitness activities[3]. 
+4)	Beetz et al. used a model-based system to analyze football matches in which players were tracked by a receiver that triangulated microwave senders on their shin guards and on ball [4].
+
+###How the model was built:
+```
+#The following libraries were loaded after careful evaluation of the each of the libraries from the following cran.r-project.org site: https://cran.r-project.org/web/views/MachineLearning.html
+
+#Set working directory
+#setwd("~/Desktop/Coursera/Machine Learning/ML Final Files")
+```
+```
+#Load libraries
+require(caret)
+require(dplyr)
+require(randomForest)
+require(kernlab)
+require(rpart)
+require(ggplot2)
+```
+###Get and Clean the Data:
+```
+#Read the training and testing data 
+
+#The training data for this project are available here: 
+#https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv 
+#The test data are available here: 
+#https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+pmlTr<-read.csv ("pml-training.csv", header=T, na.strings=c("NA", "#DIV/0!"))
+pmlTe<-read.csv ("pml-testing.csv", header=T, na.string=c("NA", "#DIV/0!"))
+```
+###Explore the training data:
+```
+table(pmlTr$classe)
+```
+###Pre-process the data: 
+
+```
+#Clean up variables which included "NA" were exclude. 
+#This is performed to exclude #variables with too many missing values. 
+exclNApmlTr <- pmlTr[, apply(pmlTr, 2, function(x) !any(is.na(x)))] 
+dim(exclNApmlTr)
+```
+```
+###Clean training variables 
+cleanpmlTr <- exclNApmlTr[,-c(1:8)]
+dim(cleanpmlTr)
+```
+```
+###The clean test cases become our test set for validation
+cleanpmlTe <-pmlTest[,names(cleanpmlTr[,-52])]
+dim(cleanpmlTe)
+```
+###Data partitioning:
+```
+#Create test partitions to provide honest assessments of the performance of our predictive model
+## Set.seed for reproducible results
+set.seed (15555)
+```
+```
+#Split data into 70% for the training data (dataTr) and 30% for the test data (dataTe)
+inTrain <- createDataPartition(y = pmlTr$classe, p=0.7, list=F)
+dataTrain <- pmlTr[inTrain,]
+dataTest <- pmlTr[-inTrain,]
+
+#Dimensions of the training and test sets
+dim(dataTrain)
+dim(dataTest)
+```
+###How cross validation was used - a summary:
+```
+#We have a small sample size so we are going to do cross validation 
+#Cross-validation approach:
+1)	Used the training set
+2)	Split it into training/test sets
+3)	Built a model on the training set
+4)	Evaluated on the test set
+5)	Repeated and averaged the estimated errors
+##The cross-validation approach is used for choosing:
+1)	Variables to include in a model
+2)	Type of prediction function to use
+3)	Parameters in the prediction function
+```
+###Fit the model and train the dataset using the Random Forest method:
+```
+library(caret)
+set.seed(15555)
+fitModel2<-trainControl(method="cv", number=5, verbose=T)
+rffitModel2<-train(classe~.,data=dataTrain, method="rf", trControl=fitModel2, verbose=F)
+```
+```
+#The Gradient Boosting Machine Learning (gbm) algorithm was used to compare the predictions. 
+#Predictions were obtained for the 20 test cases provided for the prediction assignment submission 
+#However, the (gbm) algorithm proved to be less accurate than the Random Forest method for training the model. 
+
+fitModel2<-trainControl(method="cv", number=5, verbose=T)
+gbmfit<-train(classe~.,data=dataTrain, method="gbm", trControl=fitModel2, verbose=F)
+```
+```
+#This Gradient boosting machine learning technique is used for regression and classification problems
+#It produces a prediction model in the form of an ensemble of 
+weak prediction models, typically decision trees. 
+#It builds the model in a stage-wise fashion like other boosting methods do, and it generalizes them by allowing optimization of an arbitrary differentiable loss function.
+
+gbmfit$finalModel
+class(gbmfit)
+predgbm<-predict(gbmfit, newdata=dataTest)
+confusionMatrix(predgbm, dataTest$classe)
+
+predtrain<-predict(gbmfit, newdata=dataTrain)
+confusionMatrix(predtrain, dataTrain$classe)
+
+predtrain<-predict(gbmfit, newdata= dataTrain)
+confusionMatrix(predtrain, dataTrain$classe)
+```
+###Results and Conclusions - inclusive of the expected out-of-sample error:
+```
+#The clean dataset is divided into the training set, the test set and the 
+validation set. Training models include random forest and gbm boosting. 
+#By comparing the out-of-sample accuracy of the training models, random forest was chosen as the final model due to the high level of accuracy. 
+#These Random forest trees were generated for the training dataset using cross-validation. 
+#Then the generated algorithm was used on the partitioned training set to examine the accuracy and expected out-of-sample error for prediction. In summary, 52 predictors for five classes using cross-validation included a 5-fold resulted in an accuracy of 98.9% with a 95% CI : (0.9869, 0.9922) with a Kappa value of 0.9871.   
+```
+###Predicting with the Random Forest Model: 
+```
+#This method is used to the clean test data. A confusion matrix,also known as a contingency table or an error matrix,is a specific table layout that allows visualization of the performance of an algorithm, typically a supervised learning one (in unsupervised learning it is usually called a matching matrix).
+
+predrf<-predict(rffitModel2, newdata=dataTest)
+confusionMatrix(predrf, dataTest$classe)
+```
+###Confusion Matrix and Statistics:
+```
+pred20tests<-predict(rffitModel2, newdata=cleanpmlTe)
+```
+###Prediction Assignment Submission:
+```
+#Output for the prediction of the 20 cases is provided
+
+pred20Tests
+
+```
+```
+#Two machine learning algorithms were built (gbm and rf) to each of the 20 test cases in the testing data set. 
+#For each test a text file with a single capital letter (A, B, C, D, or E) corresponding to the prediction for the corresponding problem in the test data set was uploaded.
+#The Random Forest (rf) (https://en.wikipedia.org/wiki/Random_forest) algorithm succeeded as the most accurate prediction due to the fact that all of the test cases were correct in choosing the proper class.
+```
+```
+#Example code: answers = rep("A", 20)
+#This function was loaded by copying and pasting it into R:
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+# A folder was created for the files to be written. Setwd() to set the working directory and run:
+pml_write_files(answers)
+```
+```
+#See Above References [1],[2],[3],[4]: http://groupware.les.inf.puc-rio.br/public/papers/2013.Velloso.QAR-WLE.pdf
+#See ML figures.pdf for figures in Github repro for DataRacer11.
+```
+
